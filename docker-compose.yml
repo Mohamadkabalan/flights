@@ -1,0 +1,116 @@
+# Docker Compose for the Flight API.
+#
+# Zero-to-running on a machine with ONLY Docker installed:
+#
+#     git clone <repo> && cd flight-api
+#     cp .env.docker .env        # ready-made env for the Docker network
+#     docker compose up --build
+#
+# Services:
+#   - app     : the PHP application (builds from ./Dockerfile, runs migrations
+#               on boot via docker/entrypoint.sh, serves HTTP on :8000 -> :80).
+#   - horizon : a dedicated worker running `php artisan horizon` against Redis.
+#   - mysql   : the relational database.
+#   - redis   : queue + cache-lock + Horizon backend.
+#
+# No PHP, Composer, or extensions are needed on the host — everything is built
+# inside the image.
+services:
+    app:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: flight-api/app
+        # Run DB-wait + migrate, then serve. The entrypoint wraps the command.
+        entrypoint: ['bash', 'docker/entrypoint.sh']
+        command: ['php', 'artisan', 'serve', '--host=0.0.0.0', '--port=8000']
+        ports:
+            - '${APP_PORT:-80}:8000'
+        environment:
+            # These defaults align with the mysql/redis service names below so
+            # the app works out of the box on the compose network.
+            DB_HOST: mysql
+            DB_PORT: 3306
+            REDIS_HOST: redis
+            REDIS_PORT: 6379
+        volumes:
+            # Mount source for live edits in development. Comment this out for an
+            # immutable production-style image (code is already baked in).
+            - '.:/var/www/html'
+        depends_on:
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+        networks:
+            - flight
+
+    horizon:
+        build:
+            context: .
+            dockerfile: Dockerfile
+        image: flight-api/app
+        # No entrypoint migration here; the app service owns migrations. Horizon
+        # just needs the DB/Redis to be reachable, then processes the queue.
+        command: ['php', 'artisan', 'horizon']
+        restart: unless-stopped
+        environment:
+            DB_HOST: mysql
+            DB_PORT: 3306
+            REDIS_HOST: redis
+            REDIS_PORT: 6379
+        volumes:
+            - '.:/var/www/html'
+        depends_on:
+            mysql:
+                condition: service_healthy
+            redis:
+                condition: service_healthy
+            app:
+                condition: service_started
+        networks:
+            - flight
+
+    mysql:
+        image: 'mysql:8.0'
+        ports:
+            - '${FORWARD_DB_PORT:-3306}:3306'
+        environment:
+            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD:-password}'
+            MYSQL_DATABASE: '${DB_DATABASE:-flights}'
+            MYSQL_USER: '${DB_USERNAME:-sail}'
+            MYSQL_PASSWORD: '${DB_PASSWORD:-password}'
+        volumes:
+            - 'flight-mysql:/var/lib/mysql'
+        networks:
+            - flight
+        healthcheck:
+            test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${DB_PASSWORD:-password}']
+            retries: 10
+            interval: 5s
+            timeout: 5s
+
+    redis:
+        image: 'redis:alpine'
+        ports:
+            - '${FORWARD_REDIS_PORT:-6379}:6379'
+        command: redis-server --appendonly yes
+        volumes:
+            - 'flight-redis:/data'
+        networks:
+            - flight
+        healthcheck:
+            test: ['CMD', 'redis-cli', 'ping']
+            retries: 10
+            interval: 5s
+            timeout: 3s
+
+networks:
+    flight:
+        driver: bridge
+
+volumes:
+    flight-mysql:
+        driver: local
+    flight-redis:
+        driver: local
