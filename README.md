@@ -120,7 +120,7 @@ cp .env.example .env
 php artisan key:generate
 
 # 4. Set your API key (any strong secret) in .env:
-#    API_KEY=your-strong-secret-here
+#    API_KEY=123456789
 #    Also point DB_HOST / REDIS_HOST at your services (127.0.0.1 if local).
 ```
 
@@ -228,7 +228,7 @@ All requests require the `Api-Key` header. Update requests additionally require 
 
 ```bash
 curl -X POST http://localhost/api/flights \
-  -H "Api-Key: your-strong-secret-here" \
+  -H "Api-Key: 123456789" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d '{
@@ -261,7 +261,7 @@ Response — `201 Created`:
 
 ```bash
 curl http://localhost/api/flights/9b2e7c1a-... \
-  -H "Api-Key: your-strong-secret-here" \
+  -H "Api-Key: 123456789" \
   -H "Accept: application/json"
 ```
 
@@ -288,7 +288,7 @@ Response — `200 OK`:
 
 ```bash
 curl -X PUT http://localhost/api/flights/9b2e7c1a-... \
-  -H "Api-Key: your-strong-secret-here" \
+  -H "Api-Key: 123456789" \
   -H "Idempotency-Key: 7f3c9a52-unique-per-update" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
