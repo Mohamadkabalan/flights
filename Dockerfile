@@ -6,9 +6,8 @@
 # extensions on the host — only Docker is needed. `composer install` runs during
 # the image build, so `docker compose up --build` works on a clean clone.
 #
-# PHP 8.4 is used as the runtime base (the closest widely-available official tag;
-# the application targets 8.x and runs cleanly here). Swap the tag to php:8.5-*
-# once an official 8.5 CLI image is available in your registry.
+# PHP 8.5 CLI is the runtime base, matching the application's composer platform
+# requirement (php ^8.5).
 
 FROM php:8.5-cli
 
@@ -45,11 +44,17 @@ WORKDIR /var/www/html
 # This way changes to application code do not invalidate the (slow) dependency
 # layer. Scripts are skipped here because the full app is not yet present.
 # ---------------------------------------------------------------------------
-COPY composer.json composer.lock* ./
+COPY composer.json composer.lock ./
 RUN composer install --no-interaction --no-scripts --no-autoloader --prefer-dist
 
 # Copy the rest of the application source.
 COPY . .
+
+# Bake a ready .env and a fixed application key into the image. Because there is
+# no bind mount in production (Option C), the container runs entirely from baked
+# state. For a real deployment APP_KEY/config would be injected via environment
+# variables instead of baked.
+RUN cp .env.docker .env
 
 # Finish the Composer lifecycle now that all files are present: build the
 # optimized autoloader and run package discovery.

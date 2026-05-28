@@ -33,10 +33,6 @@ services:
             DB_PORT: 3306
             REDIS_HOST: redis
             REDIS_PORT: 6379
-        volumes:
-            # Mount source for live edits in development. Comment this out for an
-            # immutable production-style image (code is already baked in).
-            - '.:/var/www/html'
         depends_on:
             mysql:
                 condition: service_healthy
@@ -59,8 +55,6 @@ services:
             DB_PORT: 3306
             REDIS_HOST: redis
             REDIS_PORT: 6379
-        volumes:
-            - '.:/var/www/html'
         depends_on:
             mysql:
                 condition: service_healthy
