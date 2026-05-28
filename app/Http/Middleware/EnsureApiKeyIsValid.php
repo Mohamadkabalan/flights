@@ -27,7 +27,7 @@ final class EnsureApiKeyIsValid
     /**
      * The header clients must send.
      */
-    public const HEADER = 'Api-Key';
+    public const string HEADER = 'Api-Key';
 
     /**
      * Handle an incoming request.
@@ -40,47 +40,36 @@ final class EnsureApiKeyIsValid
 
         // 401: the header is entirely absent or blank.
         if ($providedKey === null || $providedKey === '') {
-            return $this->unauthorized();
+            return $this->deny(Response::HTTP_UNAUTHORIZED, 'Missing ' . self::HEADER . ' header.');
         }
 
         /** @var string|null $expectedKey */
         $expectedKey = config('auth-api.key');
 
-        // Misconfiguration guard: if no server-side key is configured, fail
-        // closed (treat as forbidden) rather than accidentally allowing access.
-        if (! is_string($expectedKey) || $expectedKey === '') {
-            return $this->forbidden();
-        }
+        // 403: either the server has no key configured (fail closed) or the
+        // supplied key does not match. hash_equals is constant-time to avoid
+        // leaking information via timing. The is_string guard also ensures we
+        // never pass a non-string to hash_equals.
+        $valid = is_string($expectedKey)
+          && $expectedKey !== ''
+          && hash_equals($expectedKey, $providedKey);
 
-        // 403: a key was supplied but does not match. hash_equals performs a
-        // constant-time comparison to avoid leaking information via timing.
-        if (! hash_equals($expectedKey, $providedKey)) {
-            return $this->forbidden();
+        if (! $valid) {
+            return $this->deny(Response::HTTP_FORBIDDEN, 'Invalid ' . self::HEADER . '.');
         }
 
         // Valid key — proceed to the route.
         return $next($request);
     }
-
     /**
      * Build a 401 JSON response for a missing key.
      */
-    private function unauthorized(): Response
+    /**
+     * Build a JSON denial response with the given status and message.
+     */
+    private function deny(int $status, string $message): Response
     {
-        return response()->json(
-            ['message' => 'Missing ' . self::HEADER . ' header.'],
-            Response::HTTP_UNAUTHORIZED,
-        );
+        return response()->json(['message' => $message], $status);
     }
 
-    /**
-     * Build a 403 JSON response for an invalid key.
-     */
-    private function forbidden(): Response
-    {
-        return response()->json(
-            ['message' => 'Invalid ' . self::HEADER . '.'],
-            Response::HTTP_FORBIDDEN,
-        );
-    }
 }

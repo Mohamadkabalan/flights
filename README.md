@@ -47,8 +47,8 @@ This is the fastest path on a fresh clone. With only Docker installed:
 
 ```bash
 # 1. Clone the repository
-git clone <your-repo-url> flight-api
-cd flight-api
+git clone https://github.com/Mohamadkabalan/flights.git
+cd flights
 
 # 2. Use the ready-made Docker environment file
 #    (hosts already point at the `mysql` and `redis` service names)
@@ -80,7 +80,7 @@ docker compose down -v            # stop and delete the DB/Redis volumes (full r
 ```bash
 # Create a flight (replace the Api-Key with your .env value)
 curl -X POST http://localhost/api/flights \
-  -H "Api-Key: local-development-secret-change-me" \
+  -H "Api-Key: 123456789" \
   -H "Content-Type: application/json" -H "Accept: application/json" \
   -d '{"legs":[{"segments":[{"origin":"BCN","destination":"LON","departure":"2026-06-09T06:45:00","arrival":"2026-06-09T10:55:00","cabinClass":"Y","airline":"UA","flightNumber":"101"}]}]}'
 # -> {"flightId":"...."}

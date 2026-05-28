@@ -60,6 +60,7 @@ return new class extends Migration
             // than silently returning the original result.
             $table->string('request_hash', 64)->nullable();
 
+            $table->json('request_payload')->nullable();
             // The HTTP status code we ultimately returned/finalized for this key.
             // On a replayed request we can surface this stored outcome.
             $table->unsignedSmallInteger('response_code')->nullable();

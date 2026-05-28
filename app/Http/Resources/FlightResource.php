@@ -41,7 +41,6 @@ final class FlightResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var Flight $flight */
         $flight = $this->resource;
 
         return [

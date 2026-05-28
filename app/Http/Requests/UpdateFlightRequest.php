@@ -29,7 +29,7 @@ final class UpdateFlightRequest extends FlightPayloadRequest
      * Defined once as a constant so the controller, dispatcher, tests, and this
      * request all reference the exact same string.
      */
-    public const HEADER = 'Idempotency-Key';
+    public const string HEADER = 'Idempotency-Key';
 
     /**
      * Add update-specific validation on top of the inherited body rules.
@@ -39,8 +39,11 @@ final class UpdateFlightRequest extends FlightPayloadRequest
      * under an `idempotency_key` key means the client receives a normal 422
      * validation response describing exactly what is missing.
      */
-    protected function withValidatorHook(Validator $validator): void
+    public function withValidator(Validator $validator): void
     {
+        // Run the shared checks from the base (arrival-after-departure) first,
+        // then layer on the update-specific Idempotency-Key requirement.
+        parent::withValidator($validator);
         $validator->after(function (Validator $validator): void {
             $key = $this->header(self::HEADER);
 

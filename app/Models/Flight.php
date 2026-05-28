@@ -12,10 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * Flight aggregate root.
- *
  * A Flight is the top of our domain tree:
  *   Flight (1) ── (many) FlightLeg (1) ── (many) FlightSegment
- *
  * Publicly we identify a flight by its `uuid` (never the auto-increment `id`).
  *
  * @property int                                                              $id
@@ -23,6 +21,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property \Illuminate\Support\Carbon                                       $created_at
  * @property \Illuminate\Support\Carbon                                       $updated_at
  * @property-read \Illuminate\Database\Eloquent\Collection<int, FlightLeg>    $legs
+ *
+ * @method static \Illuminate\Database\Eloquent\Builder|Flight whereUuid(string $uuid)
+ * @method static \Illuminate\Database\Eloquent\Builder|Flight withFullTree()
  */
 final class Flight extends Model
 {

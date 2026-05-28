@@ -6,7 +6,7 @@ namespace App\Repositories;
 
 use App\Models\Flight;
 use App\Models\FlightLeg;
-
+use App\Contracts\FlightRepositoryInterface;
 /**
  * FlightRepository.
  *
@@ -37,7 +37,7 @@ use App\Models\FlightLeg;
  *     no positional counterpart is ignored (the contract is "synchronize known
  *     legs", not "grow the flight").
  */
-final class FlightRepository
+final class FlightRepository implements FlightRepositoryInterface
 {
     /**
      * Fetch a flight by UUID with a pessimistic write lock on its row, eager-
@@ -53,7 +53,7 @@ final class FlightRepository
     {
         /** @var Flight|null $flight */
         $flight = Flight::query()
-            ->whereUuid($uuid)
+            ->where('uuid', $uuid)
             ->lockForUpdate()
             ->first();
 

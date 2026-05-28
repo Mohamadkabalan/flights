@@ -21,7 +21,7 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-Route::middleware([EnsureApiKeyIsValid::class, 'throttle:api'])
+Route::middleware([EnsureApiKeyIsValid::class, 'throttle:60,1'])
     ->group(function (): void {
         // 1. Create a flight (with nested legs + segments). Returns 201 + uuid.
         Route::post('/flights', [FlightController::class, 'store'])

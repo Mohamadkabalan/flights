@@ -33,7 +33,7 @@ final class FlightSegmentResource extends JsonResource
      * matches the incoming payload exactly, so a round-trip (GET after POST)
      * returns the same string the caller sent.
      */
-    private const DATETIME_FORMAT = 'Y-m-d\TH:i:s';
+    private const string DATETIME_FORMAT = 'Y-m-d\TH:i:s';
 
     /**
      * Transform the segment into its array representation.
@@ -42,7 +42,6 @@ final class FlightSegmentResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var FlightSegment $segment */
         $segment = $this->resource;
 
         return [

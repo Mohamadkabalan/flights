@@ -44,14 +44,13 @@ final class FlightController extends Controller
 
     /**
      * POST /api/flights
-     *
      * Create a new flight with nested legs and segments.
-     *
      * Validation (non-empty legs, non-empty segments, datetime rules, etc.) has
      * already passed by the time this method runs, because StoreFlightRequest is
      * resolved and authorized before the controller action is invoked.
      *
      * @return \Illuminate\Http\JsonResponse 201 Created with {"flightId": uuid}
+     * @throws \Throwable
      */
     public function store(StoreFlightRequest $request)
     {
@@ -61,7 +60,7 @@ final class FlightController extends Controller
         // clean, trusted input contract.
         $flight = $this->creationService->create($request->validatedLegs());
 
-        // Per the spec the create response is just the generated UUID. We return
+        // Per the spec the creation response is just the generated UUID. We return
         // 201 Created to correctly signal that a new resource was created.
         return response()->json(
             ['flightId' => $flight->uuid],
@@ -102,20 +101,19 @@ final class FlightController extends Controller
             idempotencyKey: $request->idempotencyKey(),
         );
 
-        // 204: accepted and enqueued; there is no body to return. Using an empty
+        // 204: accepted and enqueued; there is nobody to return. Using an empty
         // response with the explicit status keeps the contract crisp.
         return response()->noContent();
     }
 
     /**
      * GET /api/flights/{flight}
-     *
      * Return the flight's legs (with their segments) in submitted order.
-     *
      * Route-model binding has already loaded the Flight by UUID (or 404'd). We
      * eager-load the full ordered tree to avoid N+1 queries, then let the
      * Resource shape the JSON exactly as the spec requires.
      *
+     * @param  \App\Models\Flight  $flight
      * @return FlightResource
      */
     public function show(Flight $flight): FlightResource

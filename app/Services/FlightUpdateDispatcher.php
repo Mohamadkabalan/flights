@@ -10,28 +10,37 @@ use App\Models\Flight;
 use App\Models\IdempotencyKey;
 use App\Support\IdempotencyManager;
 use App\Support\RequestHasher;
+use Illuminate\Support\Facades\DB;
 
 /**
  * FlightUpdateDispatcher.
  *
- * Coordinates the SYNCHRONOUS part of the update flow. It deliberately does NOT
- * touch flight/leg/segment tables — the actual mutation happens later in the
- * queued UpdateFlightJob. This service's responsibilities are:
+ * Coordinates the SYNCHRONOUS part of the update flow. It does NOT touch
+ * flight/leg/segment tables — the mutation happens later in the queued
+ * UpdateFlightJob. Responsibilities:
  *
  *   1. Compute a canonical hash of the incoming payload.
- *   2. Register the Idempotency-Key atomically (delegated to IdempotencyManager).
- *   3. Translate the registration outcome into the right behaviour:
- *        - ACCEPTED  -> dispatch the queued update job.
- *        - DUPLICATE -> do nothing (the first request already owns the work).
+ *   2. Register the Idempotency-Key and enqueue the job ATOMICALLY: both live
+ *      inside one transaction, and the job is pushed only via DB::afterCommit so
+ *      it is guaranteed to be queued iff the registration row is committed.
+ *   3. Translate the registration outcome:
+ *        - ACCEPTED  -> row committed + job dispatched on commit.
+ *        - DUPLICATE -> do nothing (the first request owns the work).
  *        - CONFLICT  -> throw, so the API returns 422.
  *
- * Keeping this logic here keeps the controller thin and the job focused purely
- * on persistence.
+ * Why the atomic coupling matters
+ * -------------------------------
+ * Previously the insert committed and THEN the job was dispatched as two
+ * independent steps. A crash between them left a PENDING row with no job: every
+ * retry saw DUPLICATE and returned 204, so the client believed an update
+ * succeeded that never ran. Tying the dispatch to the commit closes that window;
+ * the scheduled `flights:redispatch-stuck` command is the recovery net for the
+ * rare case the queue backend itself loses an already-committed push.
  */
 final class FlightUpdateDispatcher
 {
     public function __construct(
-        private readonly IdempotencyManager $idempotency,
+      private readonly IdempotencyManager $idempotency,
     ) {
     }
 
@@ -46,43 +55,64 @@ final class FlightUpdateDispatcher
      */
     public function dispatch(Flight $flight, array $legs, string $idempotencyKey): void
     {
-        // Hash the payload we are guarding. Including the flight UUID in the
-        // hashed structure ties the key to BOTH the body and its target, so the
-        // same key cannot be reused across different flights with the same body.
         $requestHash = RequestHasher::hash([
-            'flightId' => $flight->uuid,
-            'legs' => $legs,
+          'flightId' => $flight->uuid,
+          'legs' => $legs,
         ]);
 
-        // Atomically register the key. The manager uses the DB unique constraint
-        // to make this race-safe under concurrent submissions.
-        [$outcome, $record] = $this->idempotency->register(
-            key: $idempotencyKey,
-            operation: IdempotencyKey::OPERATION_UPDATE_FLIGHT,
-            requestHash: $requestHash,
-            flightId: $flight->uuid,
+        // Phase 1: registration + (deferred) dispatch in one transaction.
+        // tryInsert only performs the INSERT. If the key already exists it
+        // returns null and we resolve duplicate/conflict AFTER the transaction,
+        // so we never query a transaction that a unique violation may have
+        // aborted (Postgres-safe).
+        $record = DB::transaction(function () use ($flight, $legs, $idempotencyKey, $requestHash): ?IdempotencyKey {
+            $inserted = $this->idempotency->tryInsert(
+              key: $idempotencyKey,
+              operation: IdempotencyKey::OPERATION_UPDATE_FLIGHT,
+              requestHash: $requestHash,
+              flightId: $flight->uuid,
+              payload: ['legs' => $legs],
+            );
+
+            if ($inserted === null) {
+                // Key already existed — fall out and resolve outside the txn.
+                return null;
+            }
+
+            // Fresh registration: push the job only once this transaction
+            // commits. If anything rolls the transaction back, the job is never
+            // queued, so we never strand a committed row without a job.
+            DB::afterCommit(function () use ($flight, $legs, $inserted): void {
+                UpdateFlightJob::dispatch(
+                  flightUuid: $flight->uuid,
+                  legs: $legs,
+                  idempotencyKeyId: $inserted->id,
+                );
+            });
+
+            return $inserted;
+        });
+
+        // First time we saw this key: committed and queued. Done.
+        if ($record !== null) {
+            return;
+        }
+
+        // Phase 2: the key already existed. Resolve duplicate vs conflict in a
+        // clean query, now that the (possibly aborted) insert transaction is over.
+        [$outcome] = $this->idempotency->resolveExisting(
+          $idempotencyKey,
+          IdempotencyKey::OPERATION_UPDATE_FLIGHT,
+          $requestHash,
         );
 
-        // Same key, different body: reject. This is the only error path; both
-        // ACCEPTED and DUPLICATE result in 204 for the client.
+        // Same key, different body: the only error path. Both ACCEPTED and
+        // DUPLICATE yield 204 for the client.
         if ($outcome->isConflict()) {
             throw IdempotencyConflictException::forKey($idempotencyKey);
         }
 
-        // Duplicate/retry: the original request already dispatched (or will
-        // dispatch) the job. Doing nothing here is what prevents duplicate
-        // updates from retries, timeouts, or concurrent submissions.
-        if (! $outcome->shouldDispatch()) {
-            return;
-        }
-
-        // First time we have seen this key: enqueue the real work. The job
-        // receives the flight UUID, the legs payload, and the idempotency key so
-        // it can claim/lock the record and run the update transactionally.
-        UpdateFlightJob::dispatch(
-            flightUuid: $flight->uuid,
-            legs: $legs,
-            idempotencyKeyId: $record->id,
-        );
+        // DUPLICATE/retry: the original request already owns (and dispatched) the
+        // work. Doing nothing is what prevents duplicate updates.
     }
 }

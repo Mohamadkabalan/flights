@@ -30,7 +30,6 @@ final class FlightLegResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        /** @var FlightLeg $leg */
         $leg = $this->resource;
 
         return [
