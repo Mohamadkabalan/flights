@@ -80,7 +80,7 @@ docker compose down -v            # stop and delete the DB/Redis volumes (full r
 ```bash
 # Create a flight (replace the Api-Key with your .env value)
 curl -X POST http://localhost/api/flights \
-  -H "Api-Key: 123456789" \
+  -H "Api-Key: K7mP9xQ2vR8tL4nZ6bY3wF1sD5hA0cE" \
   -H "Content-Type: application/json" -H "Accept: application/json" \
   -d '{"legs":[{"segments":[{"origin":"BCN","destination":"LON","departure":"2026-06-09T06:45:00","arrival":"2026-06-09T10:55:00","cabinClass":"Y","airline":"UA","flightNumber":"101"}]}]}'
 # -> {"flightId":"...."}
@@ -120,7 +120,7 @@ cp .env.example .env
 php artisan key:generate
 
 # 4. Set your API key (any strong secret) in .env:
-#    API_KEY=123456789
+#    API_KEY=K7mP9xQ2vR8tL4nZ6bY3wF1sD5hA0cE
 #    Also point DB_HOST / REDIS_HOST at your services (127.0.0.1 if local).
 ```
 
@@ -228,7 +228,7 @@ All requests require the `Api-Key` header. Update requests additionally require 
 
 ```bash
 curl -X POST http://localhost/api/flights \
-  -H "Api-Key: 123456789" \
+  -H "Api-Key: K7mP9xQ2vR8tL4nZ6bY3wF1sD5hA0cE" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d '{
@@ -261,7 +261,7 @@ Response — `201 Created`:
 
 ```bash
 curl http://localhost/api/flights/9b2e7c1a-... \
-  -H "Api-Key: 123456789" \
+  -H "Api-Key: K7mP9xQ2vR8tL4nZ6bY3wF1sD5hA0cE" \
   -H "Accept: application/json"
 ```
 
@@ -288,7 +288,7 @@ Response — `200 OK`:
 
 ```bash
 curl -X PUT http://localhost/api/flights/9b2e7c1a-... \
-  -H "Api-Key: 123456789" \
+  -H "Api-Key: K7mP9xQ2vR8tL4nZ6bY3wF1sD5hA0cE" \
   -H "Idempotency-Key: 7f3c9a52-unique-per-update" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \

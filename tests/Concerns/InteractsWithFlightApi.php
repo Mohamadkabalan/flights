@@ -21,7 +21,7 @@ trait InteractsWithFlightApi
      */
     protected function apiKey(): string
     {
-        return '123456789';
+        return 'K7mP9xQ2vR8tL4nZ6bY3wF1sD5hA0cE';
     }
 
     /**
