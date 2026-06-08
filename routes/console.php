@@ -20,6 +20,7 @@ Artisan::command('inspire', function (): void {
 | from racing if a single invocation runs long.
 |
 */
+Schedule::command('horizon:snapshot')->everyFiveMinutes();
 Schedule::command('flights:redispatch-stuck')
   ->everyFiveMinutes()
   ->withoutOverlapping();

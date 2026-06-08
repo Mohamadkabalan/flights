@@ -55,6 +55,9 @@ final class FlightUpdateDispatcher
      */
     public function dispatch(Flight $flight, array $legs, string $idempotencyKey): void
     {
+        //we hash so the idempotency system can tell the difference between:
+        //A legitimate retry of the same request (safe)
+        //A different request accidentally reusing the same idempotency key (conflict)
         $requestHash = RequestHasher::hash([
           'flightId' => $flight->uuid,
           'legs' => $legs,

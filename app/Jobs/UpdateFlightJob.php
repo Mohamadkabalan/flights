@@ -76,6 +76,7 @@ final class UpdateFlightJob implements ShouldQueue
       FlightRepositoryInterface $flights,
     ): void {
         try {
+            //locking a Redis key , only one worker at a time can enter the callback for that same idempotency key + operation.
             $idempotency->withRedisLock(
               $this->idempotencyKeyOrThrow()->key,
               IdempotencyKey::OPERATION_UPDATE_FLIGHT,
@@ -94,23 +95,28 @@ final class UpdateFlightJob implements ShouldQueue
      */
     private function process(IdempotencyManager $idempotency, FlightRepositoryInterface $flights): void
     {
-        // Atomically claim the record. If we don't win the claim, the work is
+        // claim idempotency key, which should be added in the flight update dispatcher. If we don't win the claim, the work is
         // already done or actively owned — return without doing anything.
         if (! $idempotency->claim($this->idempotencyKeyId)) {
             return;
         }
 
         try {
-            DB::transaction(function () use ($flights): void {
+            DB::transaction(function () use ($flights,$idempotency): void {
+                // Lock and load the flight row so concurrent updates wait.
                 $flight = $flights->findForUpdate($this->flightUuid);
 
-                // Flight could have been deleted between request and processing.
-                // No flight => nothing to update; treat as a no-op success.
-                if ($flight === null) {
-                    return;
+                // If the flight still exists, apply the update.
+                if ($flight !== null) {
+                    // Update legs/segments inside the transaction.
+                    $flights->applyPositionalUpdate($flight, $this->legs);
                 }
 
-                $flights->applyPositionalUpdate($flight, $this->legs);
+                // Mark the idempotency row completed in the SAME transaction.
+                $idempotency->markCompleted(
+                  $this->idempotencyKeyId,
+                  Response::HTTP_NO_CONTENT,
+                );
             });
 
             $idempotency->markCompleted(
