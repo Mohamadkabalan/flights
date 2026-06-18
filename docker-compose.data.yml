@@ -33,9 +33,9 @@ services:
     command: ['php', 'artisan', 'horizon']
     restart: unless-stopped
     environment:
-      DB_HOST: mysql
+      DB_HOST: ${DB_HOST}
       DB_PORT: 3306
-      REDIS_HOST: redis
+      REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: 6379
     depends_on:
       mysql: { condition: service_healthy }
