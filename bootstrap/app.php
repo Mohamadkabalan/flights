@@ -21,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // file itself applies the `api` prefix via its group, so we do NOT pass
         // an additional apiPrefix here (that would double-prefix to /api/api).
         api: __DIR__ . '/../routes/api.php',
+        web: __DIR__ . '/../routes/web.php',
         commands: __DIR__ . '/../routes/console.php',
         // A lightweight health-check endpoint at /up, handy for container
         // orchestration readiness probes.
