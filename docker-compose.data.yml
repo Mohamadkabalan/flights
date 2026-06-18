@@ -1,0 +1,45 @@
+services:
+  mysql:
+    image: 'mysql:8.0'
+    environment:
+      MYSQL_ROOT_PASSWORD: '${DB_PASSWORD:-password}'
+      MYSQL_DATABASE: '${DB_DATABASE:-flights}'
+      MYSQL_USER: '${DB_USERNAME:-sail}'
+      MYSQL_PASSWORD: '${DB_PASSWORD:-password}'
+    ports:
+      - '3306:3306'
+    volumes:
+      - 'flight-mysql:/var/lib/mysql'
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-p${DB_PASSWORD:-password}']
+      retries: 10
+      interval: 5s
+      timeout: 5s
+  redis:
+    image: 'redis:alpine'
+    ports:
+      - '6379:6379'
+    command: redis-server --appendonly yes
+    volumes:
+      - 'flight-redis:/data'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      retries: 10
+      interval: 5s
+      timeout: 3s
+  horizon:
+    build: { context: ., dockerfile: Dockerfile }
+    image: flight-api/app
+    command: ['php', 'artisan', 'horizon']
+    restart: unless-stopped
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+volumes:
+  flight-mysql: { driver: local }
+  flight-redis: { driver: local }
