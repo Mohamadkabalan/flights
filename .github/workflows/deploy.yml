@@ -139,5 +139,4 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 10
-          curl -f http://${{ secrets.APP_TIER_1_HOST }}/up || exit 1
-          curl -f http://${{ secrets.APP_TIER_2_HOST }}/up || exit 1
+          curl -f http://${{ secrets.ALB_DNS_NAME }}/up || exit 1
