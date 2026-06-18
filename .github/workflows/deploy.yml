@@ -1,0 +1,143 @@
+name: Test and Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Run test suite
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: flights_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo_mysql, redis, bcmath
+          coverage: none
+
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Prepare test environment file
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: flights_test
+          DB_USERNAME: root
+          DB_PASSWORD: password
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+
+      - name: Run migrations
+        run: php artisan migrate --force
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: flights_test
+          DB_USERNAME: root
+          DB_PASSWORD: password
+
+      - name: Run test suite
+        run: php artisan test
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: flights_test
+          DB_USERNAME: root
+          DB_PASSWORD: password
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+
+  deploy:
+    name: Deploy to EC2
+    needs: test
+    runs-on: ubuntu-latest
+    # Only runs if the test job above succeeded. If tests fail, this job
+    # is skipped entirely and nothing touches the EC2 instances.
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy data tier (mysql, redis, horizon)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DATA_TIER_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/flights
+            git pull origin main
+            docker compose -f docker-compose.data.yml up --build -d
+            docker compose -f docker-compose.data.yml exec -T horizon php artisan migrate --force
+            docker compose -f docker-compose.data.yml exec -T horizon php artisan config:clear
+
+      - name: Deploy app tier instance 1
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.APP_TIER_1_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/flights
+            git pull origin main
+            docker compose -f docker-compose.app.yml up --build -d
+            docker compose -f docker-compose.app.yml exec -T app php artisan config:clear
+            docker compose -f docker-compose.app.yml exec -T app php artisan config:cache
+
+      - name: Deploy app tier instance 2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.APP_TIER_2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/flights
+            git pull origin main
+            docker compose -f docker-compose.app.yml up --build -d
+            docker compose -f docker-compose.app.yml exec -T app php artisan config:clear
+            docker compose -f docker-compose.app.yml exec -T app php artisan config:cache
+
+      - name: Verify deployment
+        run: |
+          sleep 10
+          curl -f http://${{ secrets.APP_TIER_1_HOST }}/up || exit 1
+          curl -f http://${{ secrets.APP_TIER_2_HOST }}/up || exit 1

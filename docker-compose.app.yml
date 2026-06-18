@@ -7,7 +7,7 @@ services:
     ports:
       - '${APP_PORT:-80}:8000'
     environment:
-      DB_HOST: ${DATA_TIER_PRIVATE_IP}
+      DB_HOST: ${DB_HOST}
       DB_PORT: 3306
-      REDIS_HOST: ${DATA_TIER_PRIVATE_IP}
+      REDIS_HOST: ${REDIS_HOST}
       REDIS_PORT: 6379
