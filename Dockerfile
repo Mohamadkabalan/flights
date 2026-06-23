@@ -28,6 +28,10 @@ FROM php:8.5-fpm
 #   - redis (PECL)                       : phpredis client for queue/cache
 #   - nginx                              : reverse proxy in front of FPM
 #   - supervisor                         : runs nginx + php-fpm as one unit
+#   - default-mysql-client               : mysql CLI, for ad hoc inspection via
+#                                           ECS Exec (debugging only — the app
+#                                           itself talks to MySQL via pdo_mysql,
+#                                           not this CLI)
 # ---------------------------------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
         git \
@@ -36,6 +40,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libonig-dev \
         nginx \
         supervisor \
+        default-mysql-client \
     && docker-php-ext-install pdo_mysql bcmath pcntl zip \
     && pecl install redis \
     && docker-php-ext-enable redis \
